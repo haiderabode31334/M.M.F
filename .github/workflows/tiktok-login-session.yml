@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mmf-tiktok-login-session
+  cancel-in-progress: true
+
 jobs:
   login-session:
     runs-on: [self-hosted, linux, x64]
@@ -21,4 +25,9 @@ jobs:
         uses: actions/checkout@v4
       - name: Start private local TikTok login session
         shell: bash
-        run: bash scripts/vps/tiktok-login-session.sh
+        run: |
+          if [ -f "$HOME/mmf-browser-state/tiktok-login-complete" ]; then
+            echo 'TIKTOK_AUTH_MARKER=1'
+            exit 0
+          fi
+          bash scripts/vps/tiktok-login-session.sh
