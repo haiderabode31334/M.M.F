@@ -31,6 +31,11 @@ free -h || true
 
 echo
 
+echo '--- TOP MEMORY PROCESSES ---'
+ps -eo pid,user,comm,%mem,rss,%cpu --sort=-rss 2>/dev/null | head -n 16 || true
+
+echo
+
 echo '--- DISK ---'
 df -h / || true
 
