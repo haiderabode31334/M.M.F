@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0" stop-color="#050816"/>
+      <stop offset="0.45" stop-color="#071d2b"/>
+      <stop offset="1" stop-color="#050816"/>
+      <animateTransform attributeName="gradientTransform" type="translate" values="-0.2 0;0.2 0;-0.2 0" dur="8s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="0" x2="1">
+      <stop offset="0" stop-color="#00f5d4"/>
+      <stop offset="0.5" stop-color="#00bbf9"/>
+      <stop offset="1" stop-color="#fee440"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#2ee6d6" stroke-opacity=".10"/></pattern>
+  </defs>
+  <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
+  <rect width="1200" height="360" rx="28" fill="url(#grid)"/>
+  <g opacity=".55">
+    <circle cx="110" cy="75" r="2" fill="#00f5d4"><animate attributeName="opacity" values=".1;1;.1" dur="2.2s" repeatCount="indefinite"/></circle>
+    <circle cx="1010" cy="85" r="2" fill="#fee440"><animate attributeName="opacity" values="1;.1;1" dur="2.8s" repeatCount="indefinite"/></circle>
+    <circle cx="1080" cy="270" r="2" fill="#00bbf9"><animate attributeName="opacity" values=".1;1;.1" dur="1.8s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="600" y="145" text-anchor="middle" font-family="monospace" font-size="86" font-weight="800" fill="url(#neon)" filter="url(#glow)">M.M.F</text>
+  <text x="600" y="205" text-anchor="middle" font-family="monospace" font-size="25" letter-spacing="6" fill="#d6fbff">AI SYSTEM BUILDER</text>
+  <text x="600" y="255" text-anchor="middle" font-family="monospace" font-size="18" fill="#7ee8fa">AUTOMATE  •  BUILD  •  SCALE  •  REPEAT</text>
+  <rect x="265" y="296" width="670" height="3" rx="3" fill="#143a47"/>
+  <rect x="265" y="296" width="170" height="3" rx="3" fill="url(#neon)">
+    <animate attributeName="x" values="265;765;265" dur="4s" repeatCount="indefinite"/>
+  </rect>
+</svg>
