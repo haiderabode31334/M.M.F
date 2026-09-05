@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DISPLAY_NUM=99
+export DISPLAY=":${DISPLAY_NUM}"
 PROFILE="$HOME/mmf-browser-profile"
 STATE_DIR="$HOME/mmf-browser-state"
 CHROME="/snap/chromium/current/usr/lib/chromium-browser/chrome"
@@ -15,20 +17,25 @@ rm -f "$MARKER"
 cleanup() {
   set +e
   [ -n "${CHROME_PID:-}" ] && kill "$CHROME_PID" 2>/dev/null || true
+  [ -n "${XVFB_PID:-}" ] && kill "$XVFB_PID" 2>/dev/null || true
   sleep 1
   [ -n "${CHROME_PID:-}" ] && kill -9 "$CHROME_PID" 2>/dev/null || true
+  [ -n "${XVFB_PID:-}" ] && kill -9 "$XVFB_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
 pkill -u "$(id -u)" -f "remote-debugging-port=${CDP_PORT}" 2>/dev/null || true
+pkill -u "$(id -u)" -f "Xvfb :${DISPLAY_NUM}" 2>/dev/null || true
 sleep 1
 
+Xvfb "$DISPLAY" -screen 0 1280x800x24 -nolisten tcp -ac >/tmp/mmf-xvfb.log 2>&1 &
+XVFB_PID=$!
+sleep 2
+
 "$CHROME" \
-  --headless=new \
   --no-sandbox \
   --disable-gpu \
   --disable-dev-shm-usage \
-  --disable-background-networking \
   --no-first-run \
   --no-default-browser-check \
   --window-size=1280,800 \
@@ -49,21 +56,22 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-if [ "$READY" != 1 ] || ! kill -0 "$CHROME_PID" 2>/dev/null; then
+if [ "$READY" != 1 ] || ! kill -0 "$CHROME_PID" 2>/dev/null || ! kill -0 "$XVFB_PID" 2>/dev/null; then
   echo 'ERROR=CDP_BROWSER_NOT_READY'
+  tail -n 20 /tmp/mmf-xvfb.log 2>/dev/null || true
   tail -n 20 /tmp/mmf-chrome-login.log 2>/dev/null || true
   exit 1
 fi
 
 echo 'LOGIN_SESSION_READY=1'
-echo 'MODE=LOCAL_CDP'
+echo 'MODE=XVFB_CDP'
 echo "CDP_PORT=${CDP_PORT}"
 echo 'TARGET=https://developers.tiktok.com/login'
 echo 'PROFILE_PERSISTED=1'
-echo 'SESSION_MINUTES=60'
+echo 'SESSION_MINUTES=30'
 echo "LOCAL_HELPER=${STATE_DIR}/tiktok-login-local.mjs"
 
-for _ in $(seq 1 360); do
+for _ in $(seq 1 180); do
   sleep 10
   if [ -f "$MARKER" ]; then
     echo 'LOGIN_CONFIRMED=1'
