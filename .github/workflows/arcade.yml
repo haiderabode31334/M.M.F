@@ -1,0 +1,53 @@
+name: Contribution Arcade
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - '.github/workflows/arcade.yml'
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Generate Pac-Man
+        uses: abozanona/pacman-contribution-graph@v5.0.0
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          games: 'pacman'
+          player_style: 'aggressive'
+
+      - name: Generate Snake
+        uses: Platane/snk/svg-only@v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          outputs: |
+            dist/github-snake.svg
+            dist/github-snake-dark.svg?palette=github-dark
+
+      - name: Publish animations to output branch
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/mmf-output
+          cp -R dist/. /tmp/mmf-output/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout --orphan mmf-output
+          git rm -rf . || true
+          cp -R /tmp/mmf-output/. .
+          git add -A
+          git commit -m 'chore: update contribution animations'
+          git push --force origin HEAD:output
