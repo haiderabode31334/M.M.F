@@ -1,16 +1,16 @@
 import readline from 'node:readline/promises';
 import process from 'node:process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = 9223;
-const STATE_DIR = path.join(os.homedir(), 'mmf-browser-state');
+const STATE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const MARKER = path.join(STATE_DIR, 'tiktok-login-complete');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getPageTarget() {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${PORT}/json`);
       if (r.ok) {
@@ -19,7 +19,7 @@ async function getPageTarget() {
         if (page?.webSocketDebuggerUrl) return page;
       }
     } catch {}
-    await sleep(500);
+    await sleep(250);
   }
   throw new Error('Local Chromium CDP session is not ready');
 }
@@ -92,8 +92,8 @@ async function main() {
   await send('Page.enable');
   await send('Runtime.enable');
 
-  let url = await evalValue('location.href');
-  if (!String(url).includes('developers.tiktok.com/login')) {
+  let url = String(await evalValue('location.href') || '');
+  if (!url.includes('developers.tiktok.com/login')) {
     await send('Page.navigate', { url: 'https://developers.tiktok.com/login' });
     await sleep(6000);
   }
@@ -103,49 +103,54 @@ async function main() {
   rl.close();
   const password = await promptHidden('TikTok developer password: ');
 
-  const payload = JSON.stringify({ email, password });
-  const fillResult = await evalValue(`(() => {
-    const creds = ${payload};
+  const foundRaw = await evalValue(`(() => {
     const visible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
     const inputs = [...document.querySelectorAll('input')].filter(visible);
     const pass = inputs.find(i => (i.type || '').toLowerCase() === 'password');
     const user = inputs.find(i => (i.type || '').toLowerCase() === 'email') ||
       inputs.find(i => /email|user|account/i.test([i.name,i.id,i.placeholder,i.autocomplete].join(' ')) && i !== pass) ||
       inputs.find(i => i !== pass && !['hidden','checkbox','radio','submit','button'].includes((i.type||'').toLowerCase()));
-    function setValue(el, value) {
-      if (!el) return false;
-      const proto = Object.getPrototypeOf(el);
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      if (setter) setter.call(el, value); else el.value = value;
-      el.focus();
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }
-    const userOk = setValue(user, creds.email);
-    const passOk = setValue(pass, creds.password);
-    const buttons = [...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
-    const submit = buttons.find(b => /^(log in|login|sign in)$/i.test((b.innerText || b.value || b.textContent || '').trim())) ||
-      buttons.find(b => /log in|login|sign in/i.test((b.innerText || b.value || b.textContent || '').trim()));
-    if (submit) submit.click(); else if (pass?.form) pass.form.requestSubmit();
-    return JSON.stringify({ userOk, passOk, submitted: !!submit || !!pass?.form, inputCount: inputs.length });
+    if (!user || !pass) return JSON.stringify({ok:false,count:inputs.length});
+    user.dataset.mmfLoginUser='1';
+    pass.dataset.mmfLoginPass='1';
+    return JSON.stringify({ok:true,count:inputs.length});
   })()`);
-
-  const fr = JSON.parse(fillResult || '{}');
-  if (!fr.userOk || !fr.passOk) {
+  const found = JSON.parse(foundRaw || '{}');
+  if (!found.ok) {
     console.log('STATUS=FIELDS_NOT_FOUND');
-    console.log(`INPUT_COUNT=${fr.inputCount ?? 0}`);
+    console.log(`INPUT_COUNT=${found.count ?? 0}`);
     ws.close();
     return;
   }
 
-  console.log('CREDENTIALS_FILLED=1');
-  console.log('LOGIN_SUBMITTED=1');
-  await sleep(8000);
+  await evalValue(`(() => { const e=document.querySelector('[data-mmf-login-user="1"]'); e.focus(); e.value=''; return true; })()`);
+  await send('Input.insertText', { text: email });
+  await sleep(300);
+  await evalValue(`(() => { const e=document.querySelector('[data-mmf-login-pass="1"]'); e.focus(); e.value=''; return true; })()`);
+  await send('Input.insertText', { text: password });
+  await sleep(500);
 
+  console.log('CREDENTIALS_FILLED=1');
+
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+  await sleep(1000);
+  const clicked = await evalValue(`(() => {
+    const visible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+    const buttons=[...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
+    const b=buttons.find(x=>/^(log in|login|sign in)$/i.test((x.innerText||x.value||x.textContent||'').trim())) ||
+      buttons.find(x=>/log in|login|sign in/i.test((x.innerText||x.value||x.textContent||'').trim()));
+    if (!b) return false;
+    if (!b.disabled) b.click();
+    return !b.disabled;
+  })()`);
+  console.log(`LOGIN_SUBMITTED=${clicked ? 1 : 0}`);
+
+  await sleep(9000);
   const stateRaw = await evalValue(`JSON.stringify({
     url: location.href,
-    text: (document.body?.innerText || '').slice(0, 5000),
+    text: (document.body?.innerText || '').slice(0, 6000),
+    frames: [...document.querySelectorAll('iframe')].map(f => f.src || '').slice(0,20),
     alerts: [...document.querySelectorAll('[role="alert"],[aria-live],.error,[class*="error"],[class*="Error"],[data-e2e*="error"]')]
       .filter(e => e.offsetWidth || e.offsetHeight || e.getClientRects().length)
       .map(e => (e.innerText || e.textContent || '').trim()).filter(Boolean).slice(0,20),
@@ -156,9 +161,9 @@ async function main() {
   const state = JSON.parse(stateRaw || '{}');
   const text = String(state.text || '');
   const currentUrl = String(state.url || '');
+  const frameText = (state.frames || []).join(' ');
 
   if (!currentUrl.includes('/login')) {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
     fs.writeFileSync(MARKER, 'ok\n', { mode: 0o600 });
     console.log('STATUS=LOGGED_IN');
     console.log(`URL=${currentUrl}`);
@@ -166,7 +171,7 @@ async function main() {
     return;
   }
 
-  if (/captcha|verify you are human|security check|slide to verify/i.test(text)) {
+  if (/captcha|verify you are human|security check|slide to verify/i.test(text + ' ' + frameText)) {
     console.log('STATUS=CAPTCHA_REQUIRED');
     ws.close();
     return;
@@ -177,27 +182,23 @@ async function main() {
     const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
     const code = (await rl2.question('Verification code: ')).trim();
     rl2.close();
-    const codePayload = JSON.stringify(code);
-    const otpResult = await evalValue(`(() => {
-      const code = ${codePayload};
+    const otpFound = await evalValue(`(() => {
       const visible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
-      const inputs = [...document.querySelectorAll('input')].filter(visible);
-      const otp = inputs.find(i => /one-time|otp|verification|verify|code/i.test([i.name,i.id,i.placeholder,i.autocomplete].join(' '))) || inputs.find(i => i.maxLength > 0 && i.maxLength <= 8 && i.type !== 'password');
-      if (!otp) return 'no-otp';
-      const proto = Object.getPrototypeOf(otp);
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      if (setter) setter.call(otp, code); else otp.value = code;
-      otp.focus(); otp.dispatchEvent(new Event('input',{bubbles:true})); otp.dispatchEvent(new Event('change',{bubbles:true}));
-      const buttons=[...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
-      const submit=buttons.find(b=>/verify|confirm|continue|submit|log in|login/i.test((b.innerText||b.value||b.textContent||'').trim()));
-      if(submit) submit.click(); else if(otp.form) otp.form.requestSubmit();
-      return 'submitted';
+      const inputs=[...document.querySelectorAll('input')].filter(visible);
+      const otp=inputs.find(i=>/one-time|otp|verification|verify|code/i.test([i.name,i.id,i.placeholder,i.autocomplete].join(' '))) || inputs.find(i=>i.maxLength>0&&i.maxLength<=8&&i.type!=='password');
+      if(!otp)return false; otp.focus(); otp.value=''; otp.dataset.mmfOtp='1'; return true;
     })()`);
-    console.log(`VERIFICATION_SUBMIT=${otpResult}`);
+    if (!otpFound) {
+      console.log('STATUS=OTP_FIELD_NOT_FOUND');
+      ws.close();
+      return;
+    }
+    await send('Input.insertText', { text: code });
+    await send('Input.dispatchKeyEvent', { type:'keyDown', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13 });
+    await send('Input.dispatchKeyEvent', { type:'keyUp', key:'Enter', code:'Enter', windowsVirtualKeyCode:13, nativeVirtualKeyCode:13 });
     await sleep(8000);
-    const after = String(await evalValue('location.href'));
+    const after = String(await evalValue('location.href') || '');
     if (!after.includes('/login')) {
-      fs.mkdirSync(STATE_DIR, { recursive: true });
       fs.writeFileSync(MARKER, 'ok\n', { mode: 0o600 });
       console.log('STATUS=LOGGED_IN');
     } else {
@@ -208,18 +209,14 @@ async function main() {
     return;
   }
 
-  const candidates = [
-    ...(state.alerts || []),
-    ...text.split('\n').map(s => s.trim()).filter(Boolean)
-  ];
-  const useful = [...new Set(candidates)]
-    .filter(s => /incorrect|invalid|wrong|try again|failed|unable|not found|locked|too many|error|password/i.test(s))
-    .filter(s => !/^log in with your tiktok developer account$/i.test(s))
-    .filter(s => s.length <= 300)
-    .slice(0, 5);
+  const candidates=[...(state.alerts||[]),...text.split('\n').map(s=>s.trim()).filter(Boolean)];
+  const useful=[...new Set(candidates)]
+    .filter(s=>/incorrect|invalid|wrong|try again|failed|unable|not found|locked|too many|error|does not match|doesn't match|something went wrong/i.test(s))
+    .filter(s=>s.length<=300)
+    .slice(0,5);
 
   console.log('STATUS=LOGIN_NOT_CONFIRMED');
-  if (useful.length) useful.forEach((s, i) => console.log(`DETAIL_${i+1}=${s}`));
+  if(useful.length) useful.forEach((s,i)=>console.log(`DETAIL_${i+1}=${s}`));
   else console.log('DETAIL_1=NO_VISIBLE_ERROR_MESSAGE');
   console.log(`URL=${currentUrl}`);
   ws.close();
