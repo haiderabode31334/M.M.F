@@ -1,0 +1,23 @@
+name: M.M.F TikTok Login Session
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-login-session.sh"
+      - ".github/workflows/tiktok-login-session.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  login-session:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Start private local TikTok login session
+        shell: bash
+        run: bash scripts/vps/tiktok-login-session.sh
