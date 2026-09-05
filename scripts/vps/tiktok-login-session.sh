@@ -5,10 +5,12 @@ PROFILE="$HOME/mmf-browser-profile"
 STATE_DIR="$HOME/mmf-browser-state"
 CHROME="/snap/chromium/current/usr/lib/chromium-browser/chrome"
 CDP_PORT=9223
+MARKER="$STATE_DIR/tiktok-login-complete"
 
 mkdir -p "$PROFILE" "$STATE_DIR"
 cp scripts/vps/tiktok-login-local.mjs "$STATE_DIR/tiktok-login-local.mjs"
 chmod 600 "$STATE_DIR/tiktok-login-local.mjs"
+rm -f "$MARKER"
 
 cleanup() {
   set +e
@@ -61,9 +63,12 @@ echo 'PROFILE_PERSISTED=1'
 echo 'SESSION_MINUTES=60'
 echo "LOCAL_HELPER=${STATE_DIR}/tiktok-login-local.mjs"
 
-# Keep Chromium available for local interactive login. Nothing is exposed publicly.
 for _ in $(seq 1 360); do
   sleep 10
+  if [ -f "$MARKER" ]; then
+    echo 'LOGIN_CONFIRMED=1'
+    break
+  fi
   kill -0 "$CHROME_PID" 2>/dev/null || break
 done
 
