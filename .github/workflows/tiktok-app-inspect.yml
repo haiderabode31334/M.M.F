@@ -1,0 +1,27 @@
+name: M.M.F TikTok App Inspect
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-app-inspect.mjs"
+      - ".github/workflows/tiktok-app-inspect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-app-inspect
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Inspect authenticated TikTok app state safely
+        shell: bash
+        run: node scripts/vps/tiktok-app-inspect.mjs
