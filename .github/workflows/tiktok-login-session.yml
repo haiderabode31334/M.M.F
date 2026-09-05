@@ -26,6 +26,7 @@ jobs:
       - name: Start private local TikTok login session
         shell: bash
         run: |
+          # If the successful local login marker exists, do not reopen a login browser.
           if [ -f "$HOME/mmf-browser-state/tiktok-login-complete" ]; then
             echo 'TIKTOK_AUTH_MARKER=1'
             exit 0
