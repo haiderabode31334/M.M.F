@@ -1,0 +1,73 @@
+M.M.F Publisher — TikTok App Review Submission
+
+APP NAME
+M.M.F Publisher
+
+CATEGORY
+Photo & Video / Creator Tools
+
+PUBLIC DESCRIPTION
+M.M.F Publisher helps creators securely connect their TikTok account, prepare owned or licensed video content, review publishing settings, and submit user-approved posts through TikTok's official APIs.
+
+PLATFORM
+Web
+
+WEBSITE
+https://haiderabode31334.github.io/M.M.F/
+
+TERMS OF SERVICE
+https://haiderabode31334.github.io/M.M.F/terms.html
+
+PRIVACY POLICY
+https://haiderabode31334.github.io/M.M.F/privacy.html
+
+LOGIN KIT REDIRECT URI
+https://haiderabode31334.github.io/M.M.F/callback.html
+
+PRODUCTS TO ENABLE
+1. Login Kit
+2. Content Posting API
+
+PRODUCTS TO REMOVE UNLESS ACTUALLY USED
+- Share Kit
+- Display API
+- Any TikTok Shop/local.* products or scopes
+
+SCOPES TO REQUEST
+- user.info.basic
+- video.publish
+
+Do not request video.upload if the intended production workflow is Direct Post only. If the product will send drafts to TikTok for final editing instead, use video.upload rather than video.publish.
+
+APP REVIEW EXPLANATION — COPY INTO THE 1000 CHARACTER FIELD
+M.M.F Publisher is a creator-focused web application that lets an authorized user connect a TikTok account using Login Kit, select video content they own or are authorized to publish, review the publishing settings, and explicitly submit the post to TikTok using the Content Posting API. Login Kit is used only for TikTok authentication and the user.info.basic scope is used to identify the connected account and show the authorized profile in the publishing interface. The video.publish scope is used only after the user selects a video and confirms the publishing action. The application does not publish in the background or without user action. The review demo shows the complete flow in the TikTok Sandbox: open the website, connect TikTok, approve consent, return to M.M.F Publisher, select media, review settings, confirm publishing, and display the publishing result/status.
+
+DEMO VIDEO SCRIPT
+1. Start recording with the browser address bar visible on the official M.M.F Publisher website.
+2. Show the home/service page and visible Privacy Policy + Terms links.
+3. Open the publisher interface.
+4. Tap Connect TikTok.
+5. Show the real TikTok Login Kit consent screen.
+6. Approve access using the TikTok Sandbox test account.
+7. Show the redirect back to the same M.M.F Publisher domain.
+8. Show the connected TikTok account/profile in the interface.
+9. Select a small MP4/H.264 test video owned by the tester.
+10. Show the caption/settings screen and all creator information required by Content Posting API UX.
+11. Explicitly press the final Publish button.
+12. Show the request progress and final publishing/status result.
+13. If the unaudited client restricts visibility, show that the sandbox/test post was created with the visibility permitted for the test client.
+
+VIDEO REQUIREMENTS
+- MP4 or MOV
+- Up to 5 videos can be supplied
+- Each review video must be <= 50 MB
+- Clearly show UI and user interactions
+- Demonstrate every selected product/scope
+- Website domain in the demo must match the submitted Website URL
+- For first review, demonstrate the integration using TikTok Sandbox
+
+URL VERIFICATION
+TikTok requires verification for configured website/privacy/terms URLs and Content Posting related URL properties. Use TikTok Developer Portal > URL properties. Verify the GitHub Pages URL prefix or, preferably, a dedicated custom domain later. TikTok may provide a signature file; place that exact file in the published site root and verify it in the portal.
+
+IMPORTANT
+Do not submit for production review before the Login Kit + Content Posting flow is genuinely functional. TikTok states that apps still in development/testing and apps described as private/personal-only will not be approved.
