@@ -54,6 +54,14 @@ async function openOwner(){
 async function selectIndividual(){
   return JSON.parse(await ev(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));let nodes=[...document.querySelectorAll('h1,h2,h3,h4,p,span,div,label')].filter(v);let anchor=nodes.find(e=>/select.*app owner/i.test((e.innerText||e.textContent||'').trim()))||nodes.find(e=>(e.innerText||e.textContent||'').trim()==='Ownership');if(!anchor)return JSON.stringify({status:'NO_OWNER_ANCHOR',confirm:0});let c=anchor;for(let i=0;i<10&&c;i++,c=c.parentElement){const t=c.innerText||'';if(/Individual/.test(t)&&/Organization/.test(t)&&/Confirm/.test(t)&&c.querySelector('button,[role="button"]'))break}if(!c)return JSON.stringify({status:'NO_CONTAINER',confirm:0});let ind=[...c.querySelectorAll('label,div,span')].filter(v).find(e=>(e.innerText||e.textContent||'').trim()==='Individual');if(!ind)return JSON.stringify({status:'INDIVIDUAL_NOT_FOUND',confirm:0});const row=ind.closest('label')||ind.parentElement;const radio=row?.querySelector?.('input[type="radio"],[role="radio"]');(radio||row||ind).click();let b=[...c.querySelectorAll('button,[role="button"]')].filter(v).find(e=>(e.innerText||e.textContent||'').trim()==='Confirm');if(!b)return JSON.stringify({status:'CONFIRM_NOT_FOUND',confirm:0});b.click();return JSON.stringify({status:'INDIVIDUAL_CONFIRMED',confirm:1})})()`));
 }
+async function waitForNameField(){
+  for(let i=0;i<40;i++){
+    const exists=await ev(`!!document.querySelector('#appName')`);
+    if(exists) return true;
+    await sleep(500);
+  }
+  return false;
+}
 async function focusName(){
   return await ev(`(()=>{const e=document.querySelector('#appName');if(!e)return 0;e.focus();const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;if(set)set.call(e,'');else e.value='';e.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
 }
@@ -89,32 +97,35 @@ try{
     console.log('OWNER_STATUS='+owner.status);
     console.log('OWNER_CONFIRMED='+owner.confirm);
     if(owner.confirm){
-      await sleep(5500);
-      const focused=await focusName();
-      console.log('APP_NAME_FIELD='+focused);
-      if(focused){
-        await send('Input.insertText',{text:APP_NAME});
-        await sleep(800);
-        console.log('APP_NAME_TYPED=1');
-        let type=await appTypeState();
-        console.log('APP_TYPE_STATE='+JSON.stringify(type.radios||[]));
-        console.log('CREATE_DISABLED_AFTER_NAME='+Number(!!type.createDisabled));
-        if(type.createDisabled && (type.radios||[]).length===1){
-          const selected=await clickSoleRadio();
-          console.log('SOLE_APP_TYPE_SELECTED='+selected);
-          await sleep(500);
-          type=await appTypeState();
-          console.log('CREATE_DISABLED_AFTER_TYPE='+Number(!!type.createDisabled));
-        }
-        const created=await clickCreate();
-        console.log('CREATE_CLICKED='+created);
-        if(created){
-          await sleep(7000);
-          const state=await inspectAfterCreate();
-          console.log('APP_CREATED='+Number(!!state.nameVisible || !/^\/apps\/?$/.test(String(state.path||''))));
-          console.log('APP_PATH='+String(state.path||'').replace(/[A-Za-z0-9_-]{12,}/g,'<id>'));
-          console.log('APP_HINTS='+JSON.stringify(state.lines||[]));
-          console.log('APP_ACTIONS='+JSON.stringify(state.actions||[]));
+      const ready=await waitForNameField();
+      console.log('APP_FORM_READY='+Number(ready));
+      if(ready){
+        const focused=await focusName();
+        console.log('APP_NAME_FIELD='+focused);
+        if(focused){
+          await send('Input.insertText',{text:APP_NAME});
+          await sleep(1000);
+          console.log('APP_NAME_TYPED=1');
+          let type=await appTypeState();
+          console.log('APP_TYPE_STATE='+JSON.stringify(type.radios||[]));
+          console.log('CREATE_DISABLED_AFTER_NAME='+Number(!!type.createDisabled));
+          if(type.createDisabled && (type.radios||[]).length===1){
+            const selected=await clickSoleRadio();
+            console.log('SOLE_APP_TYPE_SELECTED='+selected);
+            await sleep(700);
+            type=await appTypeState();
+            console.log('CREATE_DISABLED_AFTER_TYPE='+Number(!!type.createDisabled));
+          }
+          const created=await clickCreate();
+          console.log('CREATE_CLICKED='+created);
+          if(created){
+            await sleep(8000);
+            const state=await inspectAfterCreate();
+            console.log('APP_CREATED='+Number(!!state.nameVisible || !/^\/apps\/?$/.test(String(state.path||''))));
+            console.log('APP_PATH='+String(state.path||'').replace(/[A-Za-z0-9_-]{12,}/g,'<id>'));
+            console.log('APP_HINTS='+JSON.stringify(state.lines||[]));
+            console.log('APP_ACTIONS='+JSON.stringify(state.actions||[]));
+          }
         }
       }
     }
@@ -128,5 +139,3 @@ try{
   await sleep(300);
   try{child.kill('SIGKILL');}catch{}
 }
-
-// Trigger app-type selection run.
