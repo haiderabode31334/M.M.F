@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "scripts/vps/tiktok-login-session.sh"
+      - "scripts/vps/tiktok-login-local.mjs"
       - ".github/workflows/tiktok-login-session.yml"
   workflow_dispatch:
 
@@ -14,7 +15,7 @@ permissions:
 jobs:
   login-session:
     runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 35
+    timeout-minutes: 65
     steps:
       - name: Checkout
         uses: actions/checkout@v4
