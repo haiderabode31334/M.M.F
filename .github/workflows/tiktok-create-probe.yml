@@ -1,0 +1,33 @@
+name: M.M.F TikTok Create Probe
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-create-probe.mjs"
+      - ".github/workflows/tiktok-create-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-create-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9228' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Probe create dialog safely
+        shell: bash
+        run: node scripts/vps/tiktok-create-probe.mjs
