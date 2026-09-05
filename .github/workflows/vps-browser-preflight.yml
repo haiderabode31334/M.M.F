@@ -1,0 +1,23 @@
+name: M.M.F Browser Preflight
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/browser-preflight.sh"
+      - ".github/workflows/vps-browser-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run browser preflight
+        shell: bash
+        run: bash scripts/vps/browser-preflight.sh
