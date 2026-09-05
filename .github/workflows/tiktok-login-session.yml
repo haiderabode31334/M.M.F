@@ -4,8 +4,6 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "scripts/vps/tiktok-login-session.sh"
-      - "scripts/vps/tiktok-login-local.mjs"
       - ".github/workflows/tiktok-login-session.yml"
   workflow_dispatch:
 
@@ -19,16 +17,10 @@ concurrency:
 jobs:
   login-session:
     runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 65
+    timeout-minutes: 2
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Start private local TikTok login session
+      - name: Retire legacy login session
         shell: bash
         run: |
-          # If the successful local login marker exists, do not reopen a login browser.
-          if [ -f "$HOME/mmf-browser-state/tiktok-login-complete" ]; then
-            echo 'TIKTOK_AUTH_MARKER=1'
-            exit 0
-          fi
-          bash scripts/vps/tiktok-login-session.sh
+          echo 'LEGACY_TIKTOK_LOGIN_WORKFLOW_RETIRED=1'
+          exit 0
