@@ -1,0 +1,32 @@
+name: M.M.F TikTok Create App
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-create-app.mjs"
+      - ".github/workflows/tiktok-create-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-create-app
+  cancel-in-progress: true
+
+jobs:
+  create:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9231' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Create or open TikTok app safely
+        shell: bash
+        run: node scripts/vps/tiktok-create-app.mjs
