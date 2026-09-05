@@ -1,0 +1,33 @@
+name: M.M.F TikTok Portal Drive
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-portal-drive.mjs"
+      - ".github/workflows/tiktok-portal-drive.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-portal-drive
+  cancel-in-progress: true
+
+jobs:
+  drive:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare browser safely
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9227' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Drive authenticated TikTok portal
+        shell: bash
+        run: node scripts/vps/tiktok-portal-drive.mjs
