@@ -13,15 +13,41 @@ concurrency:
 jobs:
   probe:
     runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
+      - name: Generate temporary app icon
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import struct,zlib
+          W=H=1024; bg=(18,24,38); fg=(245,247,250); px=bytearray()
+          for y in range(H):
+              row=bytearray([0])
+              for x in range(W):
+                  c=bg
+                  if 160<=x<=220 and 250<=y<=770:c=fg
+                  if 300<=x<=360 and 250<=y<=770:c=fg
+                  if 220<=x<=300 and 250<=y<=430:c=fg
+                  if 430<=x<=490 and 250<=y<=770:c=fg
+                  if 570<=x<=630 and 250<=y<=770:c=fg
+                  if 490<=x<=570 and 250<=y<=430:c=fg
+                  if 700<=x<=760 and 250<=y<=770:c=fg
+                  if 760<=x<=885 and 250<=y<=310:c=fg
+                  if 760<=x<=850 and 480<=y<=540:c=fg
+                  row.extend(c)
+              px.extend(row)
+          def chunk(t,d):return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
+          data=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',W,H,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(bytes(px),9))+chunk(b'IEND',b'')
+          open('/tmp/mmf-tiktok-icon.png','wb').write(data)
+          PY
+          chmod 644 /tmp/mmf-tiktok-icon.png
       - name: Prepare browser
         shell: bash
         run: |
           sudo -n true
           pkill -u "$(id -u)" -f '[r]emote-debugging-port=9247' 2>/dev/null || true
           rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
-      - name: Probe sandbox safely
+      - name: Configure sandbox safely
         shell: bash
         run: node scripts/vps/tiktok-sandbox-probe.mjs
