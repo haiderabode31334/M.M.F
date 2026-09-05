@@ -1,0 +1,27 @@
+name: M.M.F TikTok Products Probe
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-products-probe.mjs"
+      - ".github/workflows/tiktok-products-probe.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mmf-tiktok-products-probe
+  cancel-in-progress: true
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9245' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Probe products selector safely
+        shell: bash
+        run: node scripts/vps/tiktok-products-probe.mjs
