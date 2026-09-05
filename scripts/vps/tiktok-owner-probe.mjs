@@ -128,3 +128,5 @@ try{
   await sleep(300);
   try{child.kill('SIGKILL');}catch{}
 }
+
+// Trigger app-type selection run.
