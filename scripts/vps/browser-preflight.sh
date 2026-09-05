@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo '===== M.M.F TIKTOK APP DASHBOARD TEST ====='
+echo '===== M.M.F TIKTOK LOGIN TEST ====='
 echo "UTC: $(date -u '+%Y-%m-%d %H:%M:%S')"
 echo "HOST: $(hostname)"
 echo "USER: $(whoami)"
@@ -14,8 +14,8 @@ grep -E '^(HugePages_Total|HugePages_Free|HugePages_Rsvd|Hugepagesize|Hugetlb):'
 
 echo
 
-echo '--- TIKTOK APPS DASHBOARD ---'
-node scripts/vps/cdp-browser.mjs https://developers.tiktok.com/apps/
+echo '--- OPEN LOGIN FLOW ---'
+node scripts/vps/cdp-browser.mjs https://developers.tiktok.com/apps/ Login
 
 echo
 
