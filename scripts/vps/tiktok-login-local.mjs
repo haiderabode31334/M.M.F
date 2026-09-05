@@ -1,8 +1,13 @@
 import readline from 'node:readline/promises';
 import process from 'node:process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const PORT = 9223;
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const STATE_DIR = path.join(os.homedir(), 'mmf-browser-state');
+const MARKER = path.join(STATE_DIR, 'tiktok-login-complete');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getPageTarget() {
   for (let i = 0; i < 60; i++) {
@@ -30,7 +35,7 @@ function connect(wsUrl) {
         pending.set(id, { res, rej });
         ws.send(JSON.stringify({ id, method, params }));
       });
-      ws.onmessage = (ev) => {
+      ws.onmessage = ev => {
         const msg = JSON.parse(ev.data);
         if (msg.id && pending.has(msg.id)) {
           const p = pending.get(msg.id);
@@ -48,14 +53,12 @@ async function promptHidden(label) {
   if (!process.stdin.isTTY) throw new Error('Run this helper from an interactive terminal');
   process.stdout.write(label);
   const stdin = process.stdin;
-  readline.emitKeypressEvents?.(stdin);
   stdin.setRawMode(true);
   stdin.resume();
   let value = '';
-  return await new Promise((resolve) => {
-    const onData = (buf) => {
-      const s = buf.toString('utf8');
-      for (const ch of s) {
+  return await new Promise(resolve => {
+    const onData = buf => {
+      for (const ch of buf.toString('utf8')) {
         if (ch === '\r' || ch === '\n') {
           stdin.off('data', onData);
           stdin.setRawMode(false);
@@ -78,9 +81,10 @@ async function promptHidden(label) {
 }
 
 async function main() {
+  try { fs.unlinkSync(MARKER); } catch {}
   const page = await getPageTarget();
   const { ws, send } = await connect(page.webSocketDebuggerUrl);
-  const evalValue = async (expression) => {
+  const evalValue = async expression => {
     const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
     return r?.result?.value;
   };
@@ -123,8 +127,7 @@ async function main() {
     const buttons = [...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
     const submit = buttons.find(b => /^(log in|login|sign in)$/i.test((b.innerText || b.value || b.textContent || '').trim())) ||
       buttons.find(b => /log in|login|sign in/i.test((b.innerText || b.value || b.textContent || '').trim()));
-    if (submit) submit.click();
-    else if (pass?.form) pass.form.requestSubmit();
+    if (submit) submit.click(); else if (pass?.form) pass.form.requestSubmit();
     return JSON.stringify({ userOk, passOk, submitted: !!submit || !!pass?.form, inputCount: inputs.length });
   })()`);
 
@@ -138,18 +141,25 @@ async function main() {
 
   console.log('CREDENTIALS_FILLED=1');
   console.log('LOGIN_SUBMITTED=1');
-  await sleep(7000);
+  await sleep(8000);
 
   const stateRaw = await evalValue(`JSON.stringify({
     url: location.href,
-    text: (document.body?.innerText || '').slice(0, 3000),
-    inputs: [...document.querySelectorAll('input')].filter(e => e.offsetWidth || e.offsetHeight || e.getClientRects().length).map(i => ({type:i.type,name:i.name,id:i.id,placeholder:i.placeholder,autocomplete:i.autocomplete,maxLength:i.maxLength}))
+    text: (document.body?.innerText || '').slice(0, 5000),
+    alerts: [...document.querySelectorAll('[role="alert"],[aria-live],.error,[class*="error"],[class*="Error"],[data-e2e*="error"]')]
+      .filter(e => e.offsetWidth || e.offsetHeight || e.getClientRects().length)
+      .map(e => (e.innerText || e.textContent || '').trim()).filter(Boolean).slice(0,20),
+    inputs: [...document.querySelectorAll('input')]
+      .filter(e => e.offsetWidth || e.offsetHeight || e.getClientRects().length)
+      .map(i => ({type:i.type,name:i.name,id:i.id,placeholder:i.placeholder,autocomplete:i.autocomplete,maxLength:i.maxLength}))
   })`);
   const state = JSON.parse(stateRaw || '{}');
   const text = String(state.text || '');
   const currentUrl = String(state.url || '');
 
   if (!currentUrl.includes('/login')) {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(MARKER, 'ok\n', { mode: 0o600 });
     console.log('STATUS=LOGGED_IN');
     console.log(`URL=${currentUrl}`);
     ws.close();
@@ -172,32 +182,45 @@ async function main() {
       const code = ${codePayload};
       const visible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
       const inputs = [...document.querySelectorAll('input')].filter(visible);
-      const otp = inputs.find(i => /one-time|otp|verification|verify|code/i.test([i.name,i.id,i.placeholder,i.autocomplete].join(' '))) ||
-        inputs.find(i => i.maxLength > 0 && i.maxLength <= 8 && i.type !== 'password');
+      const otp = inputs.find(i => /one-time|otp|verification|verify|code/i.test([i.name,i.id,i.placeholder,i.autocomplete].join(' '))) || inputs.find(i => i.maxLength > 0 && i.maxLength <= 8 && i.type !== 'password');
       if (!otp) return 'no-otp';
       const proto = Object.getPrototypeOf(otp);
       const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
       if (setter) setter.call(otp, code); else otp.value = code;
-      otp.focus();
-      otp.dispatchEvent(new Event('input', { bubbles: true }));
-      otp.dispatchEvent(new Event('change', { bubbles: true }));
-      const buttons = [...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
-      const submit = buttons.find(b => /verify|confirm|continue|submit|log in|login/i.test((b.innerText || b.value || b.textContent || '').trim()));
-      if (submit) submit.click(); else if (otp.form) otp.form.requestSubmit();
+      otp.focus(); otp.dispatchEvent(new Event('input',{bubbles:true})); otp.dispatchEvent(new Event('change',{bubbles:true}));
+      const buttons=[...document.querySelectorAll('button,input[type="submit"],[role="button"]')].filter(visible);
+      const submit=buttons.find(b=>/verify|confirm|continue|submit|log in|login/i.test((b.innerText||b.value||b.textContent||'').trim()));
+      if(submit) submit.click(); else if(otp.form) otp.form.requestSubmit();
       return 'submitted';
     })()`);
     console.log(`VERIFICATION_SUBMIT=${otpResult}`);
-    await sleep(7000);
-    const after = await evalValue('location.href');
-    console.log(String(after).includes('/login') ? 'STATUS=CHECK_BROWSER_STATE' : 'STATUS=LOGGED_IN');
+    await sleep(8000);
+    const after = String(await evalValue('location.href'));
+    if (!after.includes('/login')) {
+      fs.mkdirSync(STATE_DIR, { recursive: true });
+      fs.writeFileSync(MARKER, 'ok\n', { mode: 0o600 });
+      console.log('STATUS=LOGGED_IN');
+    } else {
+      console.log('STATUS=CHECK_BROWSER_STATE');
+    }
     console.log(`URL=${after}`);
     ws.close();
     return;
   }
 
-  const safeLine = text.split('\n').map(s => s.trim()).filter(Boolean).find(s => /incorrect|invalid|error|failed|password|account/i.test(s));
+  const candidates = [
+    ...(state.alerts || []),
+    ...text.split('\n').map(s => s.trim()).filter(Boolean)
+  ];
+  const useful = [...new Set(candidates)]
+    .filter(s => /incorrect|invalid|wrong|try again|failed|unable|not found|locked|too many|error|password/i.test(s))
+    .filter(s => !/^log in with your tiktok developer account$/i.test(s))
+    .filter(s => s.length <= 300)
+    .slice(0, 5);
+
   console.log('STATUS=LOGIN_NOT_CONFIRMED');
-  if (safeLine) console.log(`MESSAGE=${safeLine.slice(0, 240)}`);
+  if (useful.length) useful.forEach((s, i) => console.log(`DETAIL_${i+1}=${s}`));
+  else console.log('DETAIL_1=NO_VISIBLE_ERROR_MESSAGE');
   console.log(`URL=${currentUrl}`);
   ws.close();
 }
