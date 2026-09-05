@@ -18,55 +18,53 @@ async function waitJson(url){for(let i=0;i<100;i++){try{const r=await fetch(url)
 let ws,seq=0;const pending=new Map();
 function send(method,params={}){const id=++seq;ws.send(JSON.stringify({id,method,params}));return new Promise((resolve,reject)=>pending.set(id,{resolve,reject}));}
 async function evalValue(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});return r?.result?.value;}
-async function nav(url){await send('Page.navigate',{url});await sleep(7000);}
+async function nav(url){await send('Page.navigate',{url});await sleep(6500);}
+async function clickText(re){return await evalValue(`(()=>{const r=${re};const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));const els=[...document.querySelectorAll('a,button,[role="button"],[role="menuitem"],div,span')].filter(v);const e=els.find(x=>r.test((x.innerText||x.textContent||'').trim()));if(!e)return '';const c=e.closest('a,button,[role="button"],[role="menuitem"]')||e;c.click();return (c.innerText||c.textContent||'').trim().slice(0,120);})()`);}
+async function state(){return JSON.parse(await evalValue(`JSON.stringify({url:location.href,text:(document.body?.innerText||'').slice(0,15000),clicks:[...document.querySelectorAll('a,button,[role="button"],[role="menuitem"]')].filter(e=>e.offsetWidth||e.offsetHeight||e.getClientRects().length).map(e=>({t:(e.innerText||e.textContent||'').trim().replace(/\\s+/g,' ').slice(0,120),a:e.getAttribute('aria-label')||'',h:e.href||''})).filter(x=>x.t||x.a).slice(0,250)})`)||'{}');}
 
 try{
   const targets=await waitJson(`http://127.0.0.1:${port}/json`);
-  const page=targets.find(t=>t.type==='page');
-  if(!page?.webSocketDebuggerUrl)throw new Error('NO_PAGE');
+  const page=targets.find(t=>t.type==='page'); if(!page?.webSocketDebuggerUrl)throw new Error('NO_PAGE');
   ws=new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('WS_TIMEOUT')),10000);ws.onopen=()=>{clearTimeout(t);resolve();};ws.onerror=reject;});
   ws.onmessage=ev=>{const m=JSON.parse(ev.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
   await send('Page.enable'); await send('Runtime.enable');
-  await nav('https://developers.tiktok.com/apps/');
-  const state=JSON.parse(await evalValue(`JSON.stringify({
-    url:location.href,
-    text:(document.body?.innerText||'').slice(0,12000),
-    links:[...document.querySelectorAll('a')].map(a=>({t:(a.innerText||a.textContent||'').trim().slice(0,200),h:a.href})).filter(x=>x.h.includes('developers.tiktok.com'))
-  })`)||'{}');
-  const text=String(state.text||''); const url=String(state.url||'');
-  if(/\/login(?:$|[/?#])/i.test(url)||/need to login|log in with your tiktok developer account/i.test(text)){
-    console.log('AUTH=NOT_SAVED'); process.exitCode=2;
-  }else{
+  await nav('https://developers.tiktok.com/');
+  let s=await state();
+  if(/\/login(?:$|[/?#])/i.test(s.url)||/log in with your tiktok developer account/i.test(s.text)){console.log('AUTH=NOT_SAVED');process.exitCode=2;}
+  else {
     console.log('AUTH=OK');
-    const found=text.includes(TARGET);
-    console.log('TARGET_FOUND='+(found?1:0));
-    const create=/create an app|create app|add app|new app/i.test(text);
-    console.log('CREATE_AVAILABLE='+(create?1:0));
-    let href='';
-    const exact=(state.links||[]).find(x=>x.t===TARGET);
-    const partial=(state.links||[]).find(x=>x.t.includes(TARGET));
-    href=(exact||partial||{}).h||'';
-    if(found && !href){
-      href=await evalValue(`(()=>{const wanted=${JSON.stringify(TARGET)};const els=[...document.querySelectorAll('a,button,[role="button"],div')];const e=els.find(x=>(x.innerText||x.textContent||'').trim()===wanted)||els.find(x=>(x.innerText||x.textContent||'').includes(wanted));if(!e)return '';const a=e.closest('a')||e.querySelector?.('a');return a?.href||'';})()`);
+    let manage=(s.clicks||[]).find(x=>/manage apps/i.test(x.t));
+    if(!manage){
+      const profileClick=await evalValue(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));const c=[...document.querySelectorAll('button,[role="button"],a')].filter(v);let e=c.find(x=>/profile|account|avatar|developer portal/i.test([x.getAttribute('aria-label'),x.getAttribute('title'),x.textContent].join(' ')));if(!e){e=c.find(x=>x.querySelector('img')&&/avatar|profile/i.test([x.querySelector('img')?.alt,x.getAttribute('aria-label')].join(' ')));}if(!e)return '';e.click();return 'clicked';})()`);
+      if(profileClick) await sleep(1500);
+      s=await state(); manage=(s.clicks||[]).find(x=>/manage apps/i.test(x.t));
     }
-    if(href){
-      await nav(href);
-      const d=JSON.parse(await evalValue(`JSON.stringify({url:location.href,text:(document.body?.innerText||'').slice(0,12000),buttons:[...document.querySelectorAll('button,[role="button"]')].map(b=>(b.innerText||b.textContent||'').trim()).filter(Boolean).slice(0,80),labels:[...document.querySelectorAll('label')].map(l=>(l.innerText||l.textContent||'').trim()).filter(Boolean).slice(0,80),inputs:[...document.querySelectorAll('input,textarea,select')].map(i=>({type:i.type||i.tagName,ph:i.placeholder||'',name:i.name||'',id:i.id||''})).slice(0,100)})`)||'{}');
-      const dt=String(d.text||'');
-      console.log('DETAIL_REACHED=1');
-      console.log('HAS_BASIC_INFO='+( /basic information|basic info/i.test(dt)?1:0));
-      console.log('HAS_LOGIN_KIT='+( /login kit/i.test(dt)?1:0));
-      console.log('HAS_CONTENT_POSTING='+( /content posting api|direct post|upload api/i.test(dt)?1:0));
-      console.log('HAS_WEB_PLATFORM='+( /web|website url/i.test(dt)?1:0));
-      console.log('HAS_TERMS='+( /terms of service/i.test(dt)?1:0));
-      console.log('HAS_PRIVACY='+( /privacy policy/i.test(dt)?1:0));
-      const safeButtons=(d.buttons||[]).filter(x=>x.length<=80 && /edit|add|save|submit|apply|configure|manage|verify|product|platform|scope/i.test(x)).slice(0,25);
-      const safeLabels=(d.labels||[]).filter(x=>x.length<=100).slice(0,25);
-      console.log('BUTTON_HINTS='+JSON.stringify(safeButtons));
-      console.log('LABEL_HINTS='+JSON.stringify(safeLabels));
-    }else{
-      console.log('DETAIL_REACHED=0');
+    if(manage){ if(manage.h) await nav(manage.h); else {await clickText('/manage apps/i');await sleep(5000);} }
+    else {
+      const hints=(s.clicks||[]).filter(x=>/app|portal|profile|account|organization/i.test(x.t+' '+x.a)).map(x=>(x.t||x.a)).filter(Boolean).slice(0,15);
+      console.log('MANAGE_APPS_FOUND=0'); console.log('NAV_HINTS='+JSON.stringify(hints)); process.exitCode=3;
+    }
+    if(!process.exitCode){
+      s=await state(); console.log('MANAGE_APPS_FOUND=1');
+      const found=s.text.includes(TARGET); console.log('TARGET_FOUND='+(found?1:0));
+      if(found){
+        const opened=await clickText(`/${TARGET.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}/i`); if(opened) await sleep(5000);
+        console.log('TARGET_OPENED='+(opened?1:0));
+      } else {
+        let connect=(s.clicks||[]).find(x=>/connect an app|create an app|create app|add app|new app/i.test(x.t));
+        console.log('CONNECT_AVAILABLE='+(connect?1:0));
+        if(connect){ if(connect.h) await nav(connect.h); else {await clickText('/connect an app|create an app|create app|add app|new app/i');await sleep(4000);} 
+          s=await state();
+          const ownerPrompt=/select the app owner|app owner|organization/i.test(s.text); console.log('OWNER_SELECTION='+(ownerPrompt?1:0));
+          const options=(s.clicks||[]).filter(x=>/personal|individual|organization|confirm|continue|next/i.test(x.t)).map(x=>x.t).filter(Boolean).slice(0,20);
+          console.log('OWNER_HINTS='+JSON.stringify(options));
+          if(!ownerPrompt){
+            const filled=await evalValue(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length));const ins=[...document.querySelectorAll('input,textarea')].filter(v);const i=ins.find(x=>/app name|name/i.test([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' ')))||ins[0];if(!i)return 0;const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set;if(set)set.call(i,${JSON.stringify(TARGET)});else i.value=${JSON.stringify(TARGET)};i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));return 1;})()`);
+            console.log('APP_NAME_FILLED='+filled);
+          }
+        }
+      }
     }
   }
 }catch(e){console.log('ERROR='+String(e.message||e));process.exitCode=1;}
