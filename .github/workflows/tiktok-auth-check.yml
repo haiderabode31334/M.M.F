@@ -1,0 +1,23 @@
+name: M.M.F TikTok Auth Check
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-auth-check.mjs"
+      - ".github/workflows/tiktok-auth-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-check:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check saved TikTok developer session
+        shell: bash
+        run: node scripts/vps/tiktok-auth-check.mjs
