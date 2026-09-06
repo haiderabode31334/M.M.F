@@ -1,0 +1,29 @@
+import {spawn} from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+const C='/snap/chromium/current/usr/lib/chromium-browser/chrome';
+const P=path.join(os.homedir(),'mmf-browser-profile');
+const PORT=9248, APP='M.M.F Publisher', BOX='M.M.F Test';
+const sleep=m=>new Promise(r=>setTimeout(r,m));
+const ch=spawn(C,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run','--no-default-browser-check','--window-size=1440,1200',`--user-data-dir=${P}`,`--remote-debugging-port=${PORT}`,'--remote-debugging-address=127.0.0.1','--remote-allow-origins=*','about:blank'],{stdio:['ignore','ignore','ignore']});
+let ws,seq=0;const pending=new Map();
+function send(method,params={}){const id=++seq;ws.send(JSON.stringify({id,method,params}));return new Promise((resolve,reject)=>pending.set(id,{resolve,reject}))}
+async function ev(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r?.exceptionDetails)throw Error('EVAL');return r?.result?.value}
+async function ready(){for(let i=0;i<120;i++){try{const r=await fetch(`http://127.0.0.1:${PORT}/json`);if(r.ok)return r.json()}catch{}await sleep(250)}throw Error('CDP_NOT_READY')}
+async function nav(url,ms=5000){await send('Page.navigate',{url});await sleep(ms)}
+async function body(){return String(await ev('document.body?.innerText||""')||'')}
+async function openApp(){for(let i=0;i<45;i++){const hit=await ev(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),q=${JSON.stringify(APP)},e=[...document.querySelectorAll('a,button,[role="button"],div,span')].filter(v).find(x=>(x.innerText||x.textContent||'').replace(/\\s+/g,' ').trim()===q);if(!e)return 0;const a=e.closest('a');if(a?.href){location.href=a.href;return 1}(e.closest('button,[role="button"]')||e).click();return 1})()`);if(hit){for(let j=0;j<35;j++){await sleep(300);if(String(await ev('location.pathname')||'').startsWith('/app/'))return 1}}await sleep(250)}return 0}
+async function clickTopSandbox(){return ev(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),es=[...document.querySelectorAll('button,[role="button"]')].filter(v).filter(x=>(x.innerText||x.textContent||'').replace(/\\s+/g,' ').trim()==='Sandbox'&&!x.disabled);if(!es.length)return 0;es.sort((a,b)=>a.getBoundingClientRect().y-b.getBoundingClientRect().y||a.getBoundingClientRect().x-b.getBoundingClientRect().x);es[0].click();return 1})()`)}
+async function safeState(){return JSON.parse(await ev(`JSON.stringify((()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),c=x=>String(x||'').replace(/\\s+/g,' ').trim().slice(0,120),ok=s=>/Sandbox|Production|unsaved|save|discard|leave|continue|confirm|cancel|close|apply|${BOX.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}/i.test(s);const dialogs=[...document.querySelectorAll('[role="dialog"],dialog')].filter(v).map(d=>({text:c(d.innerText).split(/\\n/).slice(0,4).join(' | '),buttons:[...d.querySelectorAll('button,[role="button"]')].filter(v).map(b=>c(b.innerText||b.textContent)).filter(ok).slice(0,20)}));const controls=[...document.querySelectorAll('button,a,[role="button"]')].filter(v).map(e=>({t:c(e.innerText||e.textContent),y:Math.round(e.getBoundingClientRect().y)})).filter(x=>x.t&&ok(x.t)).slice(0,80);return{dialogs,controls}})())`)||'{}')}
+async function clickDialogProceed(){return ev(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),ds=[...document.querySelectorAll('[role="dialog"],dialog')].filter(v);for(const d of ds){const bs=[...d.querySelectorAll('button,[role="button"]')].filter(v).filter(b=>!b.disabled&&b.getAttribute('aria-disabled')!=='true');const good=bs.find(b=>/discard|leave|continue|switch|don.?t save|confirm/i.test((b.innerText||b.textContent||'').trim())&&!/cancel|close/i.test((b.innerText||b.textContent||'').trim()));if(good){good.click();return (good.innerText||good.textContent||'').trim().slice(0,80)}}return ''})()`)}
+async function clickNamed(){return ev(`(()=>{const v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),q=${JSON.stringify(BOX)},es=[...document.querySelectorAll('button,a,[role="button"],div,span')].filter(v).filter(x=>(x.innerText||x.textContent||'').replace(/\\s+/g,' ').trim()===q);if(!es.length)return 0;const e=es.find(x=>x.matches('button,a,[role="button"]'))||es[0];(e.closest('button,a,[role="button"]')||e).click();return 1})()`)}
+try{
+ const tabs=await ready(),p=tabs.find(x=>x.type==='page');ws=new WebSocket(p.webSocketDebuggerUrl);await new Promise((r,j)=>{const t=setTimeout(()=>j(Error('WS_TIMEOUT')),10000);ws.onopen=()=>{clearTimeout(t);r()};ws.onerror=j});
+ ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(Error(m.error.message)):p.resolve(m.result)}};
+ await send('Page.enable');await send('Runtime.enable');await nav('https://developers.tiktok.com/apps');if(!await openApp())throw Error('APP_NOT_FOUND');await sleep(1800);
+ console.log('TOP_SANDBOX_CLICKED='+await clickTopSandbox());await sleep(1000);
+ let st=await safeState();console.log('SWITCH_STATE='+JSON.stringify(st));
+ const proceed=await clickDialogProceed();console.log('DIALOG_PROCEED='+JSON.stringify(proceed));if(proceed)await sleep(1200);
+ console.log('NAMED_CLICK='+await clickNamed());await sleep(1800);
+ const txt=await body();console.log('SANDBOX_ACTIVE='+Number(txt.includes('You are editing '+BOX)));console.log('FINAL_HINTS='+JSON.stringify(txt.split(/\n+/).map(x=>x.replace(/\s+/g,' ').trim()).filter(x=>x&&/Sandbox|Production|M\.M\.F Test|Apply changes|Products|Scopes|Target users/i.test(x)).slice(0,50)));
+}catch(e){console.log('ERROR='+String(e.message||e));process.exitCode=1}finally{try{ws?.close()}catch{}try{ch.kill('SIGTERM')}catch{}await sleep(250);try{ch.kill('SIGKILL')}catch{}}
