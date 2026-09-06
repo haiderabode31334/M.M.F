@@ -1,0 +1,41 @@
+name: M.M.F TikTok Target Login Installer
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-target-login-local.mjs"
+      - ".github/workflows/tiktok-target-login-install.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mmf-tiktok-target-login-install
+  cancel-in-progress: true
+jobs:
+  install:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install local helper
+        shell: bash
+        run: |
+          sudo -n install -d -o github-runner -g github-runner -m 700 /home/github-runner/mmf-browser-state
+          sudo -n install -o github-runner -g github-runner -m 700 scripts/vps/tiktok-target-login-local.mjs /home/github-runner/mmf-browser-state/tiktok-target-login-local.mjs
+          sudo -n tee /usr/local/bin/mmf-tiktok-target-login >/dev/null <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          read -r -p "TikTok official username or email: " TT_LOGIN
+          read -r -s -p "TikTok password: " TT_PASS
+          echo
+          CRED=$(mktemp /run/mmf-tiktok-cred.XXXXXX)
+          trap 'rm -f "$CRED"; unset TT_LOGIN TT_PASS' EXIT
+          chmod 600 "$CRED"
+          printf '%s\n%s\n' "$TT_LOGIN" "$TT_PASS" >"$CRED"
+          chown github-runner:github-runner "$CRED"
+          unset TT_LOGIN TT_PASS
+          pkill -u github-runner -f '[r]emote-debugging-port=' 2>/dev/null || true
+          rm -f /home/github-runner/mmf-browser-profile/SingletonLock /home/github-runner/mmf-browser-profile/SingletonSocket /home/github-runner/mmf-browser-profile/SingletonCookie
+          sudo -u github-runner env HOME=/home/github-runner node /home/github-runner/mmf-browser-state/tiktok-target-login-local.mjs "$CRED"
+          EOF
+          sudo -n chmod 700 /usr/local/bin/mmf-tiktok-target-login
+          echo HELPER_INSTALLED=1
