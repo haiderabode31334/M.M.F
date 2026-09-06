@@ -1,0 +1,54 @@
+name: M.M.F TikTok OAuth Login Installer
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-oauth-login-local.mjs"
+      - ".github/workflows/tiktok-oauth-login-install.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-oauth-login-install
+  cancel-in-progress: true
+
+jobs:
+  install:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install secure local OAuth helper
+        shell: bash
+        run: |
+          sudo -n install -d -o github-runner -g github-runner -m 700 /home/github-runner/mmf-browser-state /home/github-runner/mmf-secure
+          sudo -n install -o github-runner -g github-runner -m 700 scripts/vps/tiktok-oauth-login-local.mjs /home/github-runner/mmf-browser-state/tiktok-oauth-login-local.mjs
+          sudo -n tee /usr/local/bin/mmf-tiktok-oauth-login >/dev/null <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          test -s /home/github-runner/mmf-secure/tiktok-oauth.env || { echo 'OAUTH_ENV_PRESENT=0'; exit 2; }
+          read -r -p "TikTok official username or email: " TT_LOGIN
+          read -r -s -p "TikTok password: " TT_PASS
+          echo
+          CRED=$(mktemp /run/mmf-tiktok-oauth-cred.XXXXXX)
+          trap 'rm -f "$CRED"; unset TT_LOGIN TT_PASS' EXIT
+          chmod 600 "$CRED"
+          printf '%s\n%s\n' "$TT_LOGIN" "$TT_PASS" >"$CRED"
+          chown github-runner:github-runner "$CRED"
+          unset TT_LOGIN TT_PASS
+          pkill -u github-runner -f '[r]emote-debugging-port=9266' 2>/dev/null || true
+          rm -f /home/github-runner/mmf-browser-profile/SingletonLock /home/github-runner/mmf-browser-profile/SingletonSocket /home/github-runner/mmf-browser-profile/SingletonCookie
+          set -a
+          source /home/github-runner/mmf-secure/tiktok-oauth.env
+          set +a
+          sudo -u github-runner env HOME=/home/github-runner \
+            TIKTOK_CLIENT_KEY="$TIKTOK_CLIENT_KEY" \
+            TIKTOK_CLIENT_SECRET="$TIKTOK_CLIENT_SECRET" \
+            TIKTOK_REDIRECT_URI="$TIKTOK_REDIRECT_URI" \
+            TIKTOK_SCOPES="$TIKTOK_SCOPES" \
+            node /home/github-runner/mmf-browser-state/tiktok-oauth-login-local.mjs "$CRED"
+          EOF
+          sudo -n chmod 700 /usr/local/bin/mmf-tiktok-oauth-login
+          echo HELPER_INSTALLED=1
