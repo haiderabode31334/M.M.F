@@ -1,0 +1,43 @@
+name: VPS Recovery
+
+on:
+  push:
+    branches:
+      - server-recovery
+    paths:
+      - '.github/workflows/server-recovery.yml'
+      - '.github/server-recovery-trigger'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    steps:
+      - name: Persist Remote Desktop Commander
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo /usr/local/bin/npm install -g @wonderwhy-er/desktop-commander@latest
+          cat <<'UNIT' | sudo tee /etc/systemd/system/desktop-commander-remote.service >/dev/null
+          [Unit]
+          Description=Remote Desktop Commander
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=root
+          Environment=HOME=/root
+          Environment=PATH=/usr/local/bin:/usr/bin:/bin
+          ExecStart=/usr/local/bin/desktop-commander remote
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now desktop-commander-remote.service
+          sleep 5
+          sudo systemctl --no-pager --full status desktop-commander-remote.service
