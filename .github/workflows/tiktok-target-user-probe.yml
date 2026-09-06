@@ -1,0 +1,27 @@
+name: M.M.F TikTok Target User Probe
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-target-user-probe.mjs"
+      - ".github/workflows/tiktok-target-user-probe.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mmf-tiktok-target-user-probe
+  cancel-in-progress: true
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9258' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Probe target user flow safely
+        shell: bash
+        run: node scripts/vps/tiktok-target-user-probe.mjs
