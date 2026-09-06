@@ -1,0 +1,32 @@
+name: M.M.F TikTok OAuth Public Setup
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-oauth-public-setup.mjs"
+      - ".github/workflows/tiktok-oauth-public-setup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-oauth-public-setup
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9264' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Prepare TikTok OAuth public settings
+        shell: bash
+        run: node scripts/vps/tiktok-oauth-public-setup.mjs
