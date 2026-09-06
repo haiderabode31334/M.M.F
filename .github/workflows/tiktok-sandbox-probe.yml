@@ -42,6 +42,18 @@ jobs:
           open('/tmp/mmf-tiktok-icon.png','wb').write(data)
           PY
           chmod 644 /tmp/mmf-tiktok-icon.png
+      - name: Patch reliable Sandbox entry
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/vps/tiktok-sandbox-probe.mjs')
+          s=p.read_text()
+          a=s.index('async function sandbox(){')
+          b=s.index('async function persisted(){')
+          new=r'''async function domClick(label,top=false){return ev(`(()=>{const q=${JSON.stringify(label)},v=e=>!!(e&&(e.offsetWidth||e.offsetHeight||e.getClientRects().length)),es=[...document.querySelectorAll('*')].filter(v).filter(e=>(e.innerText||e.textContent||'').replace(/\\s+/g,' ').trim()===q).map(e=>({e,r:e.getBoundingClientRect()})).filter(x=>x.r.width*x.r.height>0&&x.r.y>=0&&x.r.y<=innerHeight);if(!es.length)return 0;es.sort((a,b)=>${top?'a.r.y-b.r.y||(a.r.width*a.r.height)-(b.r.width*b.r.height)':'(a.r.width*a.r.height)-(b.r.width*b.r.height)||a.r.y-b.r.y'});let e=es[0].e;for(let i=0;i<5&&e;i++,e=e.parentElement){if(e.matches('button,a,[role="button"],[role="tab"]')){e.click();return 1}}es[0].e.click();return 1})()`)}async function sandbox(){for(let i=0;i<50;i++){if((await txt()).includes('You are editing '+N))return 1;if(await domClick('Sandbox',true)){await sleep(1200);break}await sleep(300)}for(let i=0;i<50;i++){if((await txt()).includes('You are editing '+N))return 1;if(await domClick(N,false)){await sleep(900);if((await txt()).includes('You are editing '+N))return 1}await sleep(300)}return 0}'''
+          p.write_text(s[:a]+new+s[b:])
+          PY
       - name: Prepare browser
         shell: bash
         run: |
