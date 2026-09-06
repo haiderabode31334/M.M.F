@@ -1,0 +1,27 @@
+name: M.M.F TikTok Sandbox Product Config
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-sandbox-product-config.mjs"
+      - ".github/workflows/tiktok-sandbox-product-config.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mmf-tiktok-sandbox-product-config
+  cancel-in-progress: true
+jobs:
+  configure:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9250' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Configure sandbox products safely
+        shell: bash
+        run: node scripts/vps/tiktok-sandbox-product-config.mjs
