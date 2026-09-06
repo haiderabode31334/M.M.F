@@ -1,0 +1,27 @@
+name: M.M.F TikTok Sandbox Posting Config
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-sandbox-posting-config.mjs"
+      - ".github/workflows/tiktok-sandbox-posting-config.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mmf-tiktok-sandbox-posting-config
+  cancel-in-progress: true
+jobs:
+  configure:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9252' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Inspect Content Posting configuration safely
+        shell: bash
+        run: node scripts/vps/tiktok-sandbox-posting-config.mjs
