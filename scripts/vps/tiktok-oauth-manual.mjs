@@ -1,0 +1,53 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import readline from 'node:readline/promises';
+
+const SEC=path.join(os.homedir(),'mmf-secure');
+const TOKEN_FILE=path.join(SEC,'tiktok-token.json');
+const KEY=process.env.TIKTOK_CLIENT_KEY||'';
+const SECRET=process.env.TIKTOK_CLIENT_SECRET||'';
+const REDIRECT=process.env.TIKTOK_REDIRECT_URI||'';
+const SCOPES=process.env.TIKTOK_SCOPES||'user.info.basic,video.publish';
+if(!KEY||!SECRET||!REDIRECT) throw Error('OAUTH_ENV_MISSING');
+const rl=readline.createInterface({input:process.stdin,output:process.stdout});
+const state=crypto.randomBytes(24).toString('hex');
+const auth=new URL('https://www.tiktok.com/v2/auth/authorize/');
+auth.searchParams.set('client_key',KEY);
+auth.searchParams.set('response_type','code');
+auth.searchParams.set('scope',SCOPES);
+auth.searchParams.set('redirect_uri',REDIRECT);
+auth.searchParams.set('state',state);
+console.log('OPEN_THIS_URL=');
+console.log(auth.toString());
+console.log('\nبعد الموافقة، انسخ رابط صفحة callback كاملًا من شريط العنوان والصقه هنا.');
+const raw=(await rl.question('Callback URL: ')).trim();
+let u;try{u=new URL(raw)}catch{throw Error('INVALID_CALLBACK_URL')}
+if(u.origin+u.pathname!==new URL(REDIRECT).origin+new URL(REDIRECT).pathname) throw Error('CALLBACK_URI_MISMATCH');
+const code=u.searchParams.get('code')||'';
+const returnedState=u.searchParams.get('state')||'';
+const err=u.searchParams.get('error')||'';
+if(err) throw Error('OAUTH_'+err.replace(/[^A-Za-z0-9_.-]/g,''));
+if(!code) throw Error('AUTH_CODE_MISSING');
+if(returnedState!==state) throw Error('STATE_MISMATCH');
+const body=new URLSearchParams({client_key:KEY,client_secret:SECRET,code,grant_type:'authorization_code',redirect_uri:REDIRECT});
+const r=await fetch('https://open.tiktokapis.com/v2/oauth/token/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Cache-Control':'no-cache'},body});
+let t={};try{t=await r.json()}catch{}
+if(!r.ok||!t.access_token||!t.refresh_token) throw Error('TOKEN_EXCHANGE_FAILED_'+String(t.error||t.error_description||r.status).replace(/[^A-Za-z0-9_. -]/g,'').slice(0,100));
+fs.mkdirSync(SEC,{recursive:true,mode:0o700});fs.chmodSync(SEC,0o700);
+const now=Date.now();t={...t,obtained_at:now,access_expires_at:now+Number(t.expires_in||0)*1000,refresh_expires_at:now+Number(t.refresh_expires_in||0)*1000};
+fs.writeFileSync(TOKEN_FILE,JSON.stringify(t,null,2)+'\n',{mode:0o600});fs.chmodSync(TOKEN_FILE,0o600);
+console.log('TOKEN_STORED=1');
+console.log('TOKEN_FILE_MODE='+((fs.statSync(TOKEN_FILE).mode&0o777).toString(8)));
+const scopes=String(t.scope||'').split(',').map(s=>s.trim());
+console.log('SCOPE_USER_BASIC='+Number(scopes.includes('user.info.basic')));
+console.log('SCOPE_VIDEO_PUBLISH='+Number(scopes.includes('video.publish')));
+const ci=await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/',{method:'POST',headers:{Authorization:`Bearer ${t.access_token}`,'Content-Type':'application/json; charset=UTF-8'},body:'{}'});
+let cj={};try{cj=await ci.json()}catch{}
+const opts=Array.isArray(cj?.data?.privacy_level_options)?cj.data.privacy_level_options:[];
+const ok=ci.ok&&!cj?.error?.code;
+console.log('CREATOR_INFO_OK='+Number(ok));
+console.log('PRIVACY_SELF_ONLY='+Number(opts.includes('SELF_ONLY')));
+console.log('STATUS='+(ok?'OAUTH_READY':'TOKEN_READY_CREATOR_INFO_FAILED'));
+rl.close();
