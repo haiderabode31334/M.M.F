@@ -16,6 +16,23 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - name: Patch exact product card selection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/vps/tiktok-sandbox-add-posting.mjs')
+          s=p.read_text()
+          s=s.replace(
+              "const t=titles[0].r.y+titles[0].r.height/2;",
+              "const tx=titles[0].r.x+titles[0].r.width/2,ty=titles[0].r.y+titles[0].r.height/2;"
+          )
+          s=s.replace(
+              "Math.abs((a.r.y+a.r.height/2)-t)-Math.abs((b.r.y+b.r.height/2)-t)",
+              "Math.hypot((a.r.x+a.r.width/2)-tx,(a.r.y+a.r.height/2)-ty)-Math.hypot((b.r.x+b.r.width/2)-tx,(b.r.y+b.r.height/2)-ty)"
+          )
+          p.write_text(s)
+          PY
       - name: Prepare browser
         shell: bash
         run: |
