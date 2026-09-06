@@ -1,0 +1,39 @@
+name: M.M.F TikTok OAuth Exchange
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/vps/tiktok-oauth-exchange.mjs"
+      - ".github/workflows/tiktok-oauth-exchange.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mmf-tiktok-oauth-exchange
+  cancel-in-progress: true
+
+jobs:
+  oauth:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare browser
+        shell: bash
+        run: |
+          sudo -n true
+          pkill -u "$(id -u)" -f '[r]emote-debugging-port=9265' 2>/dev/null || true
+          rm -f "$HOME/mmf-browser-profile/SingletonLock" "$HOME/mmf-browser-profile/SingletonSocket" "$HOME/mmf-browser-profile/SingletonCookie"
+      - name: Exchange TikTok OAuth securely
+        shell: bash
+        run: |
+          set +x
+          test -s /home/github-runner/mmf-secure/tiktok-oauth.env || { echo 'OAUTH_ENV_PRESENT=0'; exit 2; }
+          set -a
+          source /home/github-runner/mmf-secure/tiktok-oauth.env
+          set +a
+          echo 'OAUTH_ENV_PRESENT=1'
+          node scripts/vps/tiktok-oauth-exchange.mjs
