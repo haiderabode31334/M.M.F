@@ -1,0 +1,25 @@
+name: VPS Root Probe
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/vps-root-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 3
+    steps:
+      - name: Check runner identity and sudo
+        shell: bash
+        run: |
+          echo "RUNNER_USER=$(id -un)"
+          if sudo -n true 2>/dev/null; then
+            echo "SUDO_OK=yes"
+          else
+            echo "SUDO_OK=no"
+          fi
