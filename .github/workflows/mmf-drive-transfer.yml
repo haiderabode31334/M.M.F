@@ -1,0 +1,19 @@
+name: MMF Drive Transfer
+
+on:
+  push:
+    branches:
+      - tmp/mmf-drive-transfer
+
+jobs:
+  upload-source:
+    runs-on: self-hosted
+    steps:
+      - name: Upload MMF Social Hub source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmf-social-hub-v1-source
+          path: /home/github-runner/mmf-transfer/MMF-Social-Hub-v1.0.0-source.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
