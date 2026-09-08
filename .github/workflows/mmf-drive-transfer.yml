@@ -9,12 +9,13 @@ jobs:
   upload-source:
     runs-on: self-hosted
     steps:
-      - name: Upload MMF Social Hub source archive
+      - name: Upload MMF Social Hub source tree
         uses: actions/upload-artifact@v4
         with:
-          name: mmf-social-hub-v1-source
-          path: /home/github-runner/mmf-transfer/MMF-Social-Hub-v1.0.0-source.zip
+          name: mmf-social-hub-v1-source-tree
+          path: /home/github-runner/mmf-transfer/source-tree
           if-no-files-found: error
-          compression-level: 0
+          include-hidden-files: true
+          compression-level: 9
           retention-days: 1
-# refresh: final-mmfsocialhub-2026-09-08
+# refresh: direct-source-tree-2026-09-08
