@@ -1,0 +1,25 @@
+name: RMX2001 Root Kit Artifact
+
+on:
+  push:
+    branches:
+      - tmp/root-kit-artifact-cloud
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified root kit
+        run: |
+          curl -L --fail --retry 5 -o rootkit.zip "https://github.com/haiderabode31334/M.M.F/releases/download/rmx2001-root-kit-20260915/Realme6_RMX2001_C18_Root_Kit_2026-09-15.zip"
+          echo "d3049ef2ad36ad133f369d210fb09ca7bed1f7573d744d39694e50c03d63e7b6  rootkit.zip" | sha256sum -c -
+          mkdir rootkit
+          unzip -q rootkit.zip -d rootkit
+      - name: Upload Drive-ready archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Realme6_RMX2001_C18_Root_Kit_2026-09-15
+          path: rootkit/realme6-root-kit
+          compression-level: 6
+          retention-days: 1
+          if-no-files-found: error
